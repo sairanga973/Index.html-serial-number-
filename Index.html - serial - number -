@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SerialScan Pro — VoltaX</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow+Condensed:wght@300;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --panel: #111118;
+    --border: #1e1e2e;
+    --accent: #f5c518;
+    --accent2: #ff6b35;
+    --green: #00d68f;
+    --red: #ff4757;
+    --text: #e8e8f0;
+    --muted: #5a5a7a;
+    --card: #16161f;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Barlow Condensed', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* GRID BG */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(245,197,24,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(245,197,24,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── AUTH SCREEN ── */
+  #auth-screen {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg);
+  }
+
+  .auth-box {
+    width: 380px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 48px 40px;
+    position: relative;
+    clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
+  }
+
+  .auth-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+  }
+
+  .auth-logo {
+    font-size: 11px;
+    letter-spacing: 6px;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .auth-title {
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    line-height: 1;
+    margin-bottom: 32px;
+    text-transform: uppercase;
+  }
+
+  .auth-title span { color: var(--accent); }
+
+  .field-group { margin-bottom: 18px; }
+
+  .field-group label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .field-group input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .field-group input:focus { border-color: var(--accent); }
+
+  .btn-primary {
+    width: 100%;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 14px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.15s;
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+  }
+
+  .btn-primary:hover { background: #ffd43b; transform: translateY(-1px); }
+
+  .auth-err {
+    color: var(--red);
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    margin-top: 12px;
+    display: none;
+  }
+
+  .auth-switch {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .auth-switch a {
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: none;
+    font-weight: 700;
+  }
+
+  /* ── MAIN APP ── */
+  #app { display: none; position: relative; z-index: 1; min-height: 100vh; }
+
+  /* TOPBAR */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    position: sticky; top: 0; z-index: 50;
+  }
+
+  .topbar-logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 5px;
+    color: var(--accent);
+  }
+
+  .topbar-title {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .topbar-right {
+    display: flex; align-items: center; gap: 16px;
+  }
+
+  .user-pill {
+    background: var(--border);
+    padding: 6px 14px;
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px);
+  }
+
+  .btn-sm {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 14px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* LAYOUT */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 0;
+    min-height: calc(100vh - 57px);
+  }
+
+  /* LEFT PANEL */
+  .left-panel { padding: 32px; border-right: 1px solid var(--border); }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 5px;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+
+  /* UPLOAD ZONE */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    padding: 48px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    background: var(--card);
+    margin-bottom: 24px;
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(245,197,24,0.04);
+  }
+
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+  .upload-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+
+  .upload-text {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .upload-sub { font-size: 12px; color: var(--muted); margin-top: 6px; font-family: 'Space Mono', monospace; }
+
+  /* PREVIEW */
+  #preview-container { display: none; margin-bottom: 24px; }
+
+  #preview-img {
+    width: 100%; max-height: 400px; object-fit: contain;
+    border: 1px solid var(--border);
+    background: #000;
+    display: block;
+  }
+
+  /* RESULT BOX */
+  .result-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .result-numbers {
+    display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; min-height: 40px;
+  }
+
+  .num-tag {
+    background: rgba(245,197,24,0.1);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 6px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    animation: tagIn 0.3s ease;
+  }
+
+  .num-tag.duplicate {
+    background: rgba(255,71,87,0.1);
+    border-color: var(--red);
+    color: var(--red);
+  }
+
+  .num-tag .del-btn {
+    display: none;
+    position: absolute;
+    top: -6px; right: -6px;
+    width: 16px; height: 16px;
+    background: var(--red);
+    color: #fff;
+    font-size: 10px;
+    align-items: center; justify-content: center;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .num-tag:hover .del-btn { display: flex; }
+
+  @keyframes tagIn {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* SCAN STATUS */
+  .scan-status {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 16px 20px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 24px;
+    display: none;
+  }
+
+  .scan-status.active { display: block; border-color: var(--accent); color: var(--accent); }
+  .scan-status.done { border-color: var(--green); color: var(--green); }
+  .scan-status.error { border-color: var(--red); color: var(--red); }
+
+  .progress-bar {
+    height: 3px;
+    background: var(--border);
+    margin-top: 10px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    width: 0%;
+    transition: width 0.3s;
+  }
+
+  /* CONTROLS */
+  .controls-row {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px;
+  }
+
+  .btn-action {
+    flex: 1; min-width: 120px;
+    padding: 12px 20px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 15px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+  }
+
+  .btn-action:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-action.accent { background: var(--accent); color: #000; border-color: var(--accent); }
+  .btn-action.accent:hover { background: #ffd43b; }
+  .btn-action.green { background: rgba(0,214,143,0.1); border-color: var(--green); color: var(--green); }
+  .btn-action.green:hover { background: rgba(0,214,143,0.2); }
+
+  /* TOGGLE */
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 14px 20px;
+    margin-bottom: 12px;
+  }
+
+  .toggle-label {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .toggle-desc {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-top: 2px;
+  }
+
+  .toggle-switch {
+    width: 48px; height: 26px;
+    background: var(--border);
+    border-radius: 13px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+
+  .toggle-switch.on { background: var(--accent); }
+
+  .toggle-switch::after {
+    content: '';
+    position: absolute;
+    width: 20px; height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    top: 3px; left: 3px;
+    transition: transform 0.2s;
+  }
+
+  .toggle-switch.on::after { transform: translateX(22px); }
+
+  /* RIGHT PANEL — HISTORY */
+  .right-panel {
+    background: var(--panel);
+    display: flex; flex-direction: column;
+  }
+
+  .panel-header {
+    padding: 24px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .panel-title {
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .history-count {
+    background: var(--accent);
+    color: #000;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 3px 8px;
+    font-weight: 700;
+  }
+
+  .history-actions {
+    padding: 12px 24px;
+    display: flex; gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .history-list {
+    flex: 1; overflow-y: auto; padding: 16px 24px;
+  }
+
+  .history-list::-webkit-scrollbar { width: 4px; }
+  .history-list::-webkit-scrollbar-track { background: var(--bg); }
+  .history-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .history-entry {
+    border: 1px solid var(--border);
+    background: var(--card);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    transition: border-color 0.15s;
+    animation: slideIn 0.3s ease;
+  }
+
+  .history-entry:hover { border-color: var(--muted); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .he-meta {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .he-time {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .he-count {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .he-nums {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+
+  .he-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    background: var(--bg);
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+  }
+
+  .he-num.dup { border-color: var(--red); color: var(--red); }
+
+  .he-del {
+    background: none; border: none;
+    color: var(--muted); cursor: pointer;
+    font-size: 14px; padding: 0;
+    transition: color 0.15s;
+  }
+
+  .he-del:hover { color: var(--red); }
+
+  .empty-state {
+    text-align: center; padding: 48px 24px;
+    color: var(--muted);
+  }
+
+  .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.3; }
+  .empty-text { font-size: 13px; font-family: 'Space Mono', monospace; }
+
+  /* STATS BAR */
+  .stats-bar {
+    border-top: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; gap: 24px;
+  }
+
+  .stat { text-align: center; }
+  .stat-val { font-size: 22px; font-weight: 900; color: var(--accent); }
+  .stat-key { font-size: 10px; letter-spacing: 2px; color: var(--muted); font-family: 'Space Mono', monospace; }
+
+  /* NOTIFICATION */
+  .notif {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--panel);
+    border: 1px solid var(--green);
+    color: var(--green);
+    padding: 12px 20px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    z-index: 999;
+    animation: notifIn 0.3s ease;
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+    max-width: 300px;
+  }
+
+  .notif.error { border-color: var(--red); color: var(--red); }
+
+  @keyframes notifIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* MANUAL INPUT */
+  .manual-row {
+    display: flex; gap: 10px; margin-bottom: 16px;
+  }
+
+  .manual-row input {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    outline: none;
+  }
+
+  .manual-row input:focus { border-color: var(--accent); }
+
+  .manual-row button {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 10px 18px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    cursor: pointer;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 900px) {
+    .main-grid { grid-template-columns: 1fr; }
+    .right-panel { min-height: 400px; }
+    .topbar { padding: 12px 16px; }
+    .left-panel { padding: 20px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">VoltaX Tools</div>
+    <div class="auth-title">Serial<span>Scan</span><br>Pro</div>
+
+    <div id="login-form">
+      <div class="field-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="field-group">
+        <label>Password</label>
+        <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn-primary" onclick="doLogin()">Login →</button>
+      <div class="auth-err" id="login-err">Invalid credentials. Try again.</div>
+      <div class="auth-switch">Don't have an account? <a onclick="switchForm('register')">Register</a></div>
+    </div>
+
+    <div id="register-form" style="display:none">
+      <div class="field-group">
+        <label>Full Name</label>
+        <input type="text" id="reg-name" placeholder="Your Name">
+      </div>
+      <div class="field-group">
+        <label>Email</label>
+        <input type="email" id="reg-email" placeholder="you@example.com">
+      </div>
+      <div class="field-group">
+        <label>Password</label>
+        <input type="password" id="reg-pass" placeholder="Min 6 characters">
+      </div>
+      <button class="btn-primary" onclick="doRegister()">Create Account →</button>
+      <div class="auth-err" id="reg-err"></div>
+      <div class="auth-switch">Already registered? <a onclick="switchForm('login')">Login</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-logo">VoltaX / SerialScan Pro</div>
+    <div class="topbar-title">SERIAL SCANNER</div>
+    <div class="topbar-right">
+      <div class="user-pill" id="user-display">user@mail.com</div>
+      <button class="btn-sm" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <!-- LEFT -->
+    <div class="left-panel">
+      <div class="section-label">// Upload Image</div>
+
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" id="file-input" accept="image/*" onchange="handleFile(this.files[0])">
+        <div class="upload-icon">📷</div>
+        <div class="upload-text">Drop Image or Click</div>
+        <div class="upload-sub">PNG / JPG / WEBP — Serial Number Labels</div>
+      </div>
+
+      <div id="preview-container">
+        <img id="preview-img" src="" alt="Preview">
+      </div>
+
+      <div class="scan-status" id="scan-status">
+        <span id="status-text">Initializing OCR engine...</span>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
+
+      <div class="result-box">
+        <div class="section-label">// Detected Serial Numbers</div>
+        <div class="manual-row">
+          <input type="text" id="manual-input" placeholder="Add serial manually..." onkeydown="if(event.key==='Enter')addManual()">
+          <button onclick="addManual()">+ Add</button>
+        </div>
+        <div class="result-numbers" id="result-numbers">
+          <span style="font-family:monospace;font-size:12px;color:var(--muted)">Scan an image to see results...</span>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <button class="btn-action accent" onclick="scanImage()">⚡ Scan Image</button>
+        <button class="btn-action green" onclick="saveToHistory()">💾 Save to History</button>
+        <button class="btn-action" onclick="exportExcel()">📊 Export Excel</button>
+        <button class="btn-action" onclick="clearCurrent()">✕ Clear</button>
+      </div>
+
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Duplicate Detection</div>
+          <div class="toggle-desc" id="dup-desc">ON — duplicates will be flagged in red</div>
+        </div>
+        <div class="toggle-switch on" id="dup-toggle" onclick="toggleDup()"></div>
+      </div>
+
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Auto-Save on Scan</div>
+          <div class="toggle-desc" id="auto-desc">OFF — manually save to history</div>
+        </div>
+        <div class="toggle-switch" id="auto-toggle" onclick="toggleAuto()"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT — HISTORY -->
+    <div class="right-panel">
+      <div class="panel-header">
+        <div class="panel-title">Scan History</div>
+        <div class="history-count" id="history-count">0</div>
+      </div>
+
+      <div class="history-actions">
+        <button class="btn-action" style="font-size:12px;padding:8px 14px" onclick="exportHistoryExcel()">📊 Export All</button>
+        <button class="btn-action" style="font-size:12px;padding:8px 14px;flex:none" onclick="clearHistory()">🗑 Clear All</button>
+      </div>
+
+      <div class="history-list" id="history-list">
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <div class="empty-text">No scans yet.<br>Scan an image to begin.</div>
+        </div>
+      </div>
+
+      <div class="stats-bar">
+        <div class="stat">
+          <div class="stat-val" id="stat-total">0</div>
+          <div class="stat-key">Total Serials</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="stat-scans">0</div>
+          <div class="stat-key">Scans Done</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="stat-dups">0</div>
+          <div class="stat-key">Duplicates</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════
+// STATE
+// ════════════════════════════════
+let currentUser = null;
+let dupEnabled = true;
+let autoSave = false;
+let currentSerials = [];
+let history = [];
+let currentFile = null;
+
+// Per-user storage key helpers
+const key = (k) => `ssp_${currentUser}_${k}`;
+
+// ════════════════════════════════
+// AUTH
+// ════════════════════════════════
+function switchForm(f) {
+  document.getElementById('login-form').style.display = f === 'login' ? 'block' : 'none';
+  document.getElementById('register-form').style.display = f === 'register' ? 'block' : 'none';
+}
+
+function doLogin() {
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const pass = document.getElementById('login-pass').value;
+  if (!email || !pass) return showAuthErr('login-err', 'Please fill all fields.');
+  const users = JSON.parse(localStorage.getItem('ssp_users') || '{}');
+  if (!users[email] || users[email].pass !== btoa(pass)) {
+    return showAuthErr('login-err', 'Invalid email or password.');
+  }
+  loginSuccess(email, users[email].name);
+}
+
+function doRegister() {
+  const name = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim().toLowerCase();
+  const pass = document.getElementById('reg-pass').value;
+  if (!name || !email || !pass) return showAuthErr('reg-err', 'Please fill all fields.');
+  if (pass.length < 6) return showAuthErr('reg-err', 'Password must be 6+ characters.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showAuthErr('reg-err', 'Invalid email format.');
+  const users = JSON.parse(localStorage.getItem('ssp_users') || '{}');
+  if (users[email]) return showAuthErr('reg-err', 'Email already registered.');
+  users[email] = { name, pass: btoa(pass) };
+  localStorage.setItem('ssp_users', JSON.stringify(users));
+  loginSuccess(email, name);
+}
+
+function loginSuccess(email, name) {
+  currentUser = email;
+  localStorage.setItem('ssp_session', email);
+  document.getElementById('user-display').textContent = name || email;
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  loadUserData();
+}
+
+function doLogout() {
+  saveUserData();
+  localStorage.removeItem('ssp_session');
+  currentUser = null;
+  history = []; currentSerials = [];
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('result-numbers').innerHTML = '<span style="font-family:monospace;font-size:12px;color:var(--muted)">Scan an image to see results...</span>';
+  renderHistory();
+}
+
+function showAuthErr(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+// Auto-login check
+window.addEventListener('load', () => {
+  const session = localStorage.getItem('ssp_session');
+  if (session) {
+    const users = JSON.parse(localStorage.getItem('ssp_users') || '{}');
+    if (users[session]) loginSuccess(session, users[session].name);
+  }
+});
+
+// ════════════════════════════════
+// USER DATA
+// ════════════════════════════════
+function loadUserData() {
+  history = JSON.parse(localStorage.getItem(key('history')) || '[]');
+  dupEnabled = localStorage.getItem(key('dup')) !== 'false';
+  autoSave = localStorage.getItem(key('auto')) === 'true';
+  updateToggles();
+  renderHistory();
+  updateStats();
+}
+
+function saveUserData() {
+  if (!currentUser) return;
+  localStorage.setItem(key('history'), JSON.stringify(history));
+}
+
+// ════════════════════════════════
+// FILE HANDLING
+// ════════════════════════════════
+const uploadZone = document.getElementById('upload-zone');
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+
+function handleFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  currentFile = file;
+  const url = URL.createObjectURL(file);
+  document.getElementById('preview-img').src = url;
+  document.getElementById('preview-container').style.display = 'block';
+}
+
+// ════════════════════════════════
+// OCR / SCAN
+// ════════════════════════════════
+async function scanImage() {
+  if (!currentFile) { notify('No image loaded. Upload an image first.', true); return; }
+
+  const statusEl = document.getElementById('scan-status');
+  const statusText = document.getElementById('status-text');
+  const progressFill = document.getElementById('progress-fill');
+
+  statusEl.className = 'scan-status active';
+  statusEl.style.display = 'block';
+  progressFill.style.width = '0%';
+
+  try {
+    const result = await Tesseract.recognize(currentFile, 'eng', {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          const pct = Math.round(m.progress * 100);
+          progressFill.style.width = pct + '%';
+          statusText.textContent = `OCR Processing... ${pct}%`;
+        } else {
+          statusText.textContent = m.status;
+        }
+      }
+    });
+
+    const text = result.data.text;
+    const extracted = extractSerials(text);
+    progressFill.style.width = '100%';
+
+    if (extracted.length === 0) {
+      statusEl.className = 'scan-status error';
+      statusText.textContent = '⚠ No serial numbers detected. Try a clearer image.';
+    } else {
+      statusEl.className = 'scan-status done';
+      statusText.textContent = `✓ Extracted ${extracted.length} serial number(s)`;
+      currentSerials = extracted;
+      renderTags();
+      if (autoSave) saveToHistory();
+    }
+  } catch (err) {
+    statusEl.className = 'scan-status error';
+    statusText.textContent = '✗ OCR failed: ' + err.message;
+  }
+}
+
+function extractSerials(text) {
+  // Extract alphanumeric strings that look like serial numbers
+  // Matches: 5+ char combos with letters+numbers, or pure numbers 4+ digits
+  const patterns = [
+    /\b[A-Z0-9]{2,}-[A-Z0-9]{2,}(?:-[A-Z0-9]+)*\b/g,       // WITH hyphens: AB-1234-XY
+    /\b[A-Z]{1,4}[0-9]{4,}[A-Z0-9]*\b/g,                    // starts with letters: SN1234567
+    /\b[0-9]{4,}[A-Z]{1,4}[0-9]*\b/g,                       // numbers then letters
+    /\b[0-9]{6,}\b/g,                                        // pure long numbers
+    /\b[A-Z0-9]{8,}\b/g,                                     // long alphanumeric
+  ];
+
+  const found = new Set();
+  for (const p of patterns) {
+    const matches = text.toUpperCase().match(p) || [];
+    matches.forEach(m => found.add(m.trim()));
+  }
+
+  // Filter out common words
+  const skip = new Set(['THE', 'AND', 'FOR', 'FROM', 'SERIAL', 'NUMBER', 'MODEL', 'PART', 'DATE', 'CODE']);
+  return [...found].filter(s => !skip.has(s) && s.length >= 4);
+}
+
+// ════════════════════════════════
+// TAGS / CURRENT SERIALS
+// ════════════════════════════════
+function renderTags() {
+  const container = document.getElementById('result-numbers');
+  if (currentSerials.length === 0) {
+    container.innerHTML = '<span style="font-family:monospace;font-size:12px;color:var(--muted)">No serials yet...</span>';
+    return;
+  }
+
+  const allHistorySerials = history.flatMap(h => h.serials);
+  const seenInCurrent = new Map();
+  currentSerials.forEach(s => seenInCurrent.set(s, (seenInCurrent.get(s) || 0) + 1));
+
+  container.innerHTML = '';
+  currentSerials.forEach((s, i) => {
+    const tag = document.createElement('div');
+    tag.className = 'num-tag';
+    const isDupCurrent = dupEnabled && seenInCurrent.get(s) > 1;
+    const isDupHistory = dupEnabled && allHistorySerials.includes(s);
+    if (isDupCurrent || isDupHistory) tag.classList.add('duplicate');
+
+    const title = isDupHistory ? 'Found in history!' : isDupCurrent ? 'Duplicate in scan' : 'Click to copy';
+    tag.title = title;
+    tag.innerHTML = `${s}<div class="del-btn" onclick="removeSerial(${i},event)">✕</div>`;
+    tag.addEventListener('click', e => {
+      if (!e.target.classList.contains('del-btn')) {
+        navigator.clipboard.writeText(s).catch(() => {});
+        notify(`Copied: ${s}`);
+      }
+    });
+    container.appendChild(tag);
+  });
+}
+
+function removeSerial(idx, e) {
+  e.stopPropagation();
+  currentSerials.splice(idx, 1);
+  renderTags();
+}
+
+function addManual() {
+  const inp = document.getElementById('manual-input');
+  const val = inp.value.trim().toUpperCase();
+  if (!val) return;
+  currentSerials.push(val);
+  inp.value = '';
+  renderTags();
+  notify(`Added: ${val}`);
+}
+
+function clearCurrent() {
+  currentSerials = [];
+  currentFile = null;
+  document.getElementById('preview-container').style.display = 'none';
+  document.getElementById('preview-img').src = '';
+  document.getElementById('file-input').value = '';
+  document.getElementById('scan-status').style.display = 'none';
+  renderTags();
+}
+
+// ════════════════════════════════
+// HISTORY
+// ════════════════════════════════
+function saveToHistory() {
+  if (currentSerials.length === 0) { notify('No serials to save.', true); return; }
+
+  const allHistorySerials = history.flatMap(h => h.serials);
+  const dups = dupEnabled ? currentSerials.filter(s => allHistorySerials.includes(s)) : [];
+
+  history.unshift({
+    id: Date.now(),
+    timestamp: new Date().toLocaleString(),
+    serials: [...currentSerials],
+    duplicates: dups,
+    filename: currentFile ? currentFile.name : 'manual'
+  });
+
+  saveUserData();
+  renderHistory();
+  updateStats();
+  notify(`Saved ${currentSerials.length} serial(s) to history`);
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  document.getElementById('history-count').textContent = history.length;
+
+  if (history.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No scans yet.<br>Scan an image to begin.</div></div>`;
+    return;
+  }
+
+  list.innerHTML = history.map((entry, i) => `
+    <div class="history-entry">
+      <div class="he-meta">
+        <div>
+          <div class="he-time">${entry.timestamp}</div>
+          <div style="font-size:10px;color:var(--muted);font-family:monospace;margin-top:2px">${entry.filename}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="he-count">${entry.serials.length} SN</div>
+          <button class="he-del" onclick="deleteHistoryEntry(${i})" title="Delete">✕</button>
+        </div>
+      </div>
+      <div class="he-nums">
+        ${entry.serials.map(s => `<div class="he-num ${entry.duplicates && entry.duplicates.includes(s) ? 'dup' : ''}" title="${entry.duplicates && entry.duplicates.includes(s) ? 'Duplicate' : ''}">${s}</div>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function deleteHistoryEntry(idx) {
+  history.splice(idx, 1);
+  saveUserData();
+  renderHistory();
+  updateStats();
+}
+
+function clearHistory() {
+  if (!confirm('Clear all scan history? This cannot be undone.')) return;
+  history = [];
+  saveUserData();
+  renderHistory();
+  updateStats();
+  notify('History cleared.');
+}
+
+function updateStats() {
+  const totalSerials = history.reduce((a, h) => a + h.serials.length, 0);
+  const totalDups = history.reduce((a, h) => a + (h.duplicates ? h.duplicates.length : 0), 0);
+  document.getElementById('stat-total').textContent = totalSerials;
+  document.getElementById('stat-scans').textContent = history.length;
+  document.getElementById('stat-dups').textContent = totalDups;
+}
+
+// ════════════════════════════════
+// EXPORT EXCEL
+// ════════════════════════════════
+function exportExcel() {
+  if (currentSerials.length === 0) { notify('No serials to export.', true); return; }
+
+  const allHistorySerials = history.flatMap(h => h.serials);
+  const rows = [['#', 'Serial Number', 'Status', 'Exported At']];
+  const seenInCurrent = new Map();
+  currentSerials.forEach(s => seenInCurrent.set(s, (seenInCurrent.get(s) || 0) + 1));
+
+  currentSerials.forEach((s, i) => {
+    const isDupC = seenInCurrent.get(s) > 1;
+    const isDupH = allHistorySerials.includes(s);
+    const status = !dupEnabled ? 'OK' : isDupH ? 'DUPLICATE (History)' : isDupC ? 'DUPLICATE (Scan)' : 'OK';
+    rows.push([i + 1, s, status, new Date().toLocaleString()]);
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 22 }, { wch: 22 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Current Scan');
+  XLSX.writeFile(wb, `SerialScan_${Date.now()}.xlsx`);
+  notify('Excel exported!');
+}
+
+function exportHistoryExcel() {
+  if (history.length === 0) { notify('No history to export.', true); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  // Summary sheet
+  const sumRows = [['Scan #', 'Timestamp', 'File', 'Count', 'Duplicates']];
+  history.forEach((h, i) => sumRows.push([i + 1, h.timestamp, h.filename, h.serials.length, h.duplicates ? h.duplicates.length : 0]));
+  const sumWs = XLSX.utils.aoa_to_sheet(sumRows);
+  sumWs['!cols'] = [{ wch: 7 }, { wch: 22 }, { wch: 20 }, { wch: 8 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, sumWs, 'Summary');
+
+  // All serials sheet
+  const allRows = [['Serial Number', 'Scan Date', 'File', 'Status']];
+  const seenAll = new Map();
+  history.forEach(h => {
+    h.serials.forEach(s => {
+      const status = seenAll.has(s) ? 'DUPLICATE' : 'OK';
+      seenAll.set(s, true);
+      allRows.push([s, h.timestamp, h.filename, status]);
+    });
+  });
+  const allWs = XLSX.utils.aoa_to_sheet(allRows);
+  allWs['!cols'] = [{ wch: 25 }, { wch: 22 }, { wch: 20 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, allWs, 'All Serials');
+
+  XLSX.writeFile(wb, `SerialScan_History_${Date.now()}.xlsx`);
+  notify('Full history exported!');
+}
+
+// ════════════════════════════════
+// TOGGLES
+// ════════════════════════════════
+function toggleDup() {
+  dupEnabled = !dupEnabled;
+  localStorage.setItem(key('dup'), dupEnabled);
+  updateToggles();
+  renderTags();
+  notify(dupEnabled ? 'Duplicate detection ON' : 'Duplicate detection OFF');
+}
+
+function toggleAuto() {
+  autoSave = !autoSave;
+  localStorage.setItem(key('auto'), autoSave);
+  updateToggles();
+  notify(autoSave ? 'Auto-save ON' : 'Auto-save OFF');
+}
+
+function updateToggles() {
+  const dt = document.getElementById('dup-toggle');
+  const at = document.getElementById('auto-toggle');
+  dt.className = 'toggle-switch' + (dupEnabled ? ' on' : '');
+  at.className = 'toggle-switch' + (autoSave ? ' on' : '');
+  document.getElementById('dup-desc').textContent = dupEnabled ? 'ON — duplicates flagged in red' : 'OFF — duplicates ignored';
+  document.getElementById('auto-desc').textContent = autoSave ? 'ON — saves after every scan' : 'OFF — save manually';
+}
+
+// ════════════════════════════════
+// NOTIFY
+// ════════════════════════════════
+function notify(msg, err = false) {
+  const n = document.createElement('div');
+  n.className = 'notif' + (err ? ' error' : '');
+  n.textContent = (err ? '⚠ ' : '✓ ') + msg;
+  document.body.appendChild(n);
+  setTimeout(() => n.remove(), 3000);
+}
+</script>
+</body>
+</html>
